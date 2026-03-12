@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALC Mismatch Dashboard — DataJam 2026</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0a2342; --navy2: #0d2e50; --teal: #028090;
+  --mint: #02c39a; --coral: #e84855; --gold: #f4a261;
+  --sky: #7dd3fc;  --white: #f4f7f9; --gray: #64748b;
+  --card: #0f2f52; --border: rgba(2,195,154,0.15);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--navy); color:var(--white); font-family:'Outfit',sans-serif; min-height:100vh; }
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: linear-gradient(rgba(2,195,154,0.03) 1px,transparent 1px),
+                    linear-gradient(90deg,rgba(2,195,154,0.03) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+/* ── HEADER ── */
+header {
+  position:sticky; top:0; z-index:100;
+  background:rgba(10,35,66,0.95); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:18px 40px; display:flex; align-items:center; justify-content:space-between;
+}
+.logo { display:flex; align-items:center; gap:12px; }
+.pulse { width:10px; height:10px; background:var(--mint); border-radius:50%; animation:pulse 2s infinite; box-shadow:0 0 12px rgba(2,195,154,0.5); }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
+.logo-txt { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.2em; color:var(--mint); text-transform:uppercase; }
+.header-title { font-family:'DM Serif Display',serif; font-size:20px; }
+.header-title span { color:var(--mint); }
+.live-badge {
+  display:flex; align-items:center; gap:8px;
+  background:rgba(232,72,85,.12); border:1px solid rgba(232,72,85,.35);
+  border-radius:20px; padding:5px 14px;
+  font-family:'DM Mono',monospace; font-size:9px; color:var(--coral); letter-spacing:.15em;
+}
+.live-dot { width:6px; height:6px; background:var(--coral); border-radius:50%; animation:pulse 1.2s infinite; }
+
+/* ── NAV TABS ── */
+.tabs {
+  position:relative; z-index:1;
+  display:flex; gap:4px; padding:16px 40px 0;
+  border-bottom:1px solid var(--border);
+  background:rgba(10,35,66,0.6);
+}
+.tab {
+  padding:10px 22px; border-radius:10px 10px 0 0; cursor:pointer;
+  font-size:13px; font-weight:600; border:1px solid transparent;
+  border-bottom:none; transition:all .2s; color:rgba(244,247,249,.45);
+  font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+}
+.tab:hover { color:var(--white); background:rgba(255,255,255,.05); }
+.tab.active { color:var(--mint); background:var(--card); border-color:var(--border); }
+
+/* ── MAIN ── */
+main { position:relative; z-index:1; max-width:1400px; margin:0 auto; padding:32px 40px 60px; }
+.page { display:none; }
+.page.active { display:block; animation:fadeUp .4s ease both; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── SECTION ── */
+.section-label {
+  font-family:'DM Mono',monospace; font-size:9px; letter-spacing:.25em;
+  color:var(--mint); text-transform:uppercase;
+  margin-bottom:16px; padding-bottom:8px; border-bottom:1px solid var(--border);
+}
+.panel {
+  background:var(--card); border:1px solid rgba(255,255,255,.07);
+  border-radius:18px; padding:26px;
+}
+.panel-title { font-size:16px; font-weight:700; margin-bottom:18px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
+.grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:20px; }
+.grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+
+/* ── KPI CARDS ── */
+.kpi {
+  background:var(--card); border:1px solid rgba(255,255,255,.07);
+  border-radius:14px; padding:20px 22px;
+  transition:all .25s; cursor:default;
+}
+.kpi:hover { border-color:var(--mint); box-shadow:0 0 24px rgba(2,195,154,.15); transform:translateY(-2px); }
+.kpi-val { font-family:'DM Serif Display',serif; font-size:36px; line-height:1; margin-bottom:6px; }
+.kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:rgba(244,247,249,.45); }
+.kpi-sub { font-size:11px; color:rgba(244,247,249,.55); margin-top:4px; }
+
+/* ── ZONE CARDS ── */
+.zone-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+.zcard {
+  background:rgba(255,255,255,.04); border:2px solid rgba(255,255,255,.08);
+  border-radius:14px; padding:18px; cursor:pointer;
+  transition:all .25s cubic-bezier(.34,1.56,.64,1);
+}
+.zcard:hover { transform:translateY(-4px) scale(1.02); }
+.zcard.active { background:rgba(255,255,255,.08); }
+.zcard-zone { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:.2em; text-transform:uppercase; opacity:.5; margin-bottom:4px; }
+.zcard-name { font-weight:700; font-size:15px; margin-bottom:12px; }
+.zcard-row { display:flex; justify-content:space-between; font-size:11px; margin-bottom:5px; }
+.zcard-row-label { color:rgba(244,247,249,.45); }
+.zcard-row-val { font-family:'DM Mono',monospace; font-weight:500; }
+.zcard-bar { height:4px; background:rgba(255,255,255,.08); border-radius:2px; margin-top:10px; }
+.zcard-fill { height:4px; border-radius:2px; }
+.zbadge {
+  display:inline-block; margin-top:8px;
+  padding:3px 9px; border-radius:20px;
+  font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  border:1px solid;
+}
+
+/* ── DETAIL BOX ── */
+.zone-detail {
+  background:rgba(255,255,255,.04); border-radius:14px; padding:22px;
+  margin-bottom:20px; min-height:160px;
+  border:1px solid rgba(255,255,255,.07);
+}
+.detail-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0; }
+.dstat { background:rgba(255,255,255,.05); border-radius:10px; padding:14px; }
+.dstat-val { font-family:'DM Serif Display',serif; font-size:26px; margin-bottom:4px; }
+.dstat-label { font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:rgba(244,247,249,.4); }
+.insight { background:rgba(2,195,154,.07); border:1px solid rgba(2,195,154,.2); border-radius:10px; padding:14px 16px; font-size:13px; line-height:1.65; color:rgba(244,247,249,.82); }
+.insight strong { color:var(--mint); }
+
+/* ── CASCADE ── */
+.cascade { display:flex; align-items:stretch; gap:0; overflow-x:auto; margin-top:4px; }
+.cstep { flex:1; min-width:130px; }
+.ccard {
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09);
+  border-radius:14px; padding:18px 14px; text-align:center; height:100%;
+  transition:all .3s;
+}
+.ccard:hover { background:rgba(255,255,255,.08); transform:translateY(-3px); }
+.cicon { font-size:26px; margin-bottom:8px; }
+.cval { font-family:'DM Serif Display',serif; font-size:30px; line-height:1; margin-bottom:6px; transition:all .5s; }
+.ctitle { font-size:12px; font-weight:700; margin-bottom:4px; }
+.cdesc { font-size:10px; color:rgba(244,247,249,.4); line-height:1.5; }
+.carrow { display:flex; align-items:center; justify-content:center; padding:0 6px; color:rgba(244,247,249,.2); font-size:20px; flex-shrink:0; align-self:center; }
+
+/* ── SLIDER ── */
+.slider-wrap { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.slider-wrap label { font-size:12px; color:rgba(244,247,249,.55); white-space:nowrap; }
+input[type=range] {
+  -webkit-appearance:none; width:200px; height:4px;
+  background:rgba(255,255,255,.12); border-radius:2px; outline:none; cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:18px; height:18px;
+  background:var(--mint); border-radius:50%; box-shadow:0 0 10px rgba(2,195,154,.5);
+}
+.slval { font-family:'DM Mono',monospace; font-size:14px; color:var(--mint); min-width:45px; font-weight:500; }
+
+/* ── CHART CONTAINERS ── */
+.chart-box { width:100%; height:320px; }
+.chart-box-lg { width:100%; height:380px; }
+.chart-box-sm { width:100%; height:260px; }
+
+/* ── SOURCE LIST ── */
+.src-list { display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+.src-item {
+  display:flex; gap:12px; align-items:flex-start;
+  padding:12px 14px; background:rgba(255,255,255,.04);
+  border-radius:10px; border:1px solid rgba(255,255,255,.06);
+  transition:border-color .2s;
+}
+.src-item:hover { border-color:rgba(2,195,154,.3); }
+.src-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+.src-name { font-size:12px; font-weight:600; margin-bottom:2px; }
+.src-desc { font-size:10px; color:rgba(244,247,249,.4); line-height:1.4; }
+
+@media(max-width:900px) {
+  header,main,.tabs { padding-left:20px; padding-right:20px; }
+  .grid2,.grid3,.grid4,.zone-cards,.detail-stats { grid-template-columns:1fr; }
+  .cascade { flex-direction:column; }
+  .carrow { transform:rotate(90deg); padding:4px 0; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="pulse"></div>
+    <span class="logo-txt">DataJam 2026 · NS Healthcare</span>
+  </div>
+  <div class="header-title">ALC <span>Mismatch</span> Dashboard</div>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    Real NS Data · {{ live.ltc_date }}
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="showPage('overview')">Overview</div>
+  <div class="tab" onclick="showPage('zones')">Zone Analysis</div>
+  <div class="tab" onclick="showPage('trends')">Trends</div>
+  <div class="tab" onclick="showPage('impact')">Impact Model</div>
+  <div class="tab" onclick="showPage('data')">Data Sources</div>
+</div>
+
+<main>
+
+<!-- ═══════════ PAGE 1: OVERVIEW ═══════════ -->
+<div id="page-overview" class="page active">
+  <div class="section-label" style="margin-top:8px">// The problem at a glance · real data · {{ live.ltc_date }}</div>
+
+  <!-- KPI row -->
+  <div class="grid4">
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--coral)" id="k1">{{ live.waiting_hospital }}</div>
+      <div class="kpi-label">Waiting in Hospital</div>
+      <div class="kpi-sub">People in hospital beds — medically ready to leave</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--gold)" id="k2">{{ live.total_waiting }}</div>
+      <div class="kpi-label">Total on LTC Waitlist</div>
+      <div class="kpi-sub">Community + hospital combined</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--mint)" id="k3">{{ live.home_support_waiting }}</div>
+      <div class="kpi-label">Waiting for Home Support</div>
+      <div class="kpi-sub">People who could leave hospital if home care existed</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--sky)" id="k4">{{ live.total_nh_beds }}</div>
+      <div class="kpi-label">Total NH Beds in NS</div>
+      <div class="kpi-sub">Across {{ live.total_facilities }} facilities</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-title">ALC Days by Zone — % of Hospital Days</div>
+      <div id="chart-zone-alc" class="chart-box"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">LTC Waitlist — In Hospital vs Community (2011–2025)</div>
+      <div id="chart-ltc-trend-mini" class="chart-box"></div>
+    </div>
+  </div>
+
+  <!-- Cost comparison -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-title">💰 The Cost Gap: Why This Matters Financially</div>
+    <div class="grid3">
+      <div style="background:rgba(232,72,85,.1);border:1px solid rgba(232,72,85,.25);border-radius:12px;padding:20px">
+        <div style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--coral);margin-bottom:6px">Hospital Bed (ALC)</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:42px;color:var(--coral)">$1,200</div>
+        <div style="font-size:12px;color:rgba(244,247,249,.5)">per patient per day</div>
+      </div>
+      <div style="background:rgba(2,195,154,.08);border:1px solid rgba(2,195,154,.25);border-radius:12px;padding:20px">
+        <div style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--mint);margin-bottom:6px">Home Care Support</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:42px;color:var(--mint)">$50</div>
+        <div style="font-size:12px;color:rgba(244,247,249,.5)">per patient per day</div>
+      </div>
+      <div style="background:rgba(244,162,97,.08);border:1px solid rgba(244,162,97,.25);border-radius:12px;padding:20px">
+        <div style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:6px">NS LTC Annual Budget</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:42px;color:var(--gold)">$873M</div>
+        <div style="font-size:12px;color:rgba(244,247,249,.5)">yet ALC days keep rising</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE 2: ZONES ═══════════ -->
+<div id="page-zones" class="page">
+<!-- Zone cards rendered by JS -->
+  <div id="zone-cards-js"></div>
+
+  <!-- Zone cards rendered by JS -->
+  <div id="zone-cards-js"></div>
+
+  <!-- Detail panel -->
+  <div class="zone-detail" id="zone-detail-box">
+    <div style="display:flex;align-items:center;justify-content:center;height:120px;color:rgba(244,247,249,.3);font-style:italic">
+      ← Select a zone above to see detailed analysis
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-title">Beds Blocked by Zone (ALC estimate)</div>
+      <div id="chart-blocked" class="chart-box"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Nursing Home Wait Times by County</div>
+      <div id="chart-wait" class="chart-box"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">LTC & Residential Care Beds by Zone</div>
+    <div id="chart-facilities" class="chart-box"></div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE 3: TRENDS ═══════════ -->
+<div id="page-trends" class="page">
+  <div class="section-label" style="margin-top:8px">// Historical waitlist data · 2011–2025 · weekly records</div>
+
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-title">LTC Waitlist — Waiting in Hospital (the ALC proxy)</div>
+    <div id="chart-hospital-trend" class="chart-box-lg"></div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-title">LTC Waitlist — Community vs Hospital</div>
+      <div id="chart-community-trend" class="chart-box"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Home Support Waitlist (2014–2025)</div>
+      <div id="chart-home-trend" class="chart-box"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE 4: IMPACT MODEL ═══════════ -->
+<div id="page-impact" class="page">
+  <div class="section-label" style="margin-top:8px">// Drag slider to model the impact of redirecting home care resources</div>
+
+  <div class="panel" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;margin-bottom:28px">
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:22px">What Happens When We Fix the Mismatch?</div>
+        <div style="font-size:13px;color:rgba(244,247,249,.5);margin-top:4px">Model: redirect existing home care to free ALC hospital beds. No hiring. No building.</div>
+      </div>
+      <div class="slider-wrap">
+        <label>Home Care Redirect %:</label>
+        <input type="range" id="cascadeSlider" min="10" max="60" value="30" oninput="updateCascade(this.value)">
+        <span class="slval" id="sliderDisplay">30%</span>
+      </div>
+    </div>
+
+    <div class="cascade">
+      <div class="cstep">
+        <div class="ccard" style="border-color:rgba(2,195,154,.3)">
+          <div class="cicon">🏠</div>
+          <div class="cval" id="c-beds" style="color:var(--mint)">163</div>
+          <div class="ctitle">Beds Freed</div>
+          <div class="cdesc">ALC patients moved<br>to home care</div>
+        </div>
+      </div>
+      <div class="carrow">→</div>
+      <div class="cstep">
+        <div class="ccard" style="border-color:rgba(232,72,85,.3)">
+          <div class="cicon">🏥</div>
+          <div class="cval" id="c-er" style="color:var(--coral)">-23%</div>
+          <div class="ctitle">ER Wait Drop</div>
+          <div class="cdesc">New admissions fill<br>freed beds</div>
+        </div>
+      </div>
+      <div class="carrow">→</div>
+      <div class="cstep">
+        <div class="ccard" style="border-color:rgba(244,162,97,.3)">
+          <div class="cicon">🚑</div>
+          <div class="cval" id="c-amb" style="color:var(--gold)">-31 min</div>
+          <div class="ctitle">Offload Delay</div>
+          <div class="cdesc">Ambulances return<br>to service faster</div>
+        </div>
+      </div>
+      <div class="carrow">→</div>
+      <div class="cstep">
+        <div class="ccard" style="border-color:rgba(125,211,252,.3)">
+          <div class="cicon">💰</div>
+          <div class="cval" id="c-save" style="color:var(--sky)">$71M</div>
+          <div class="ctitle">Annual Savings</div>
+          <div class="cdesc">Hospital → home care<br>cost differential</div>
+        </div>
+      </div>
+      <div class="carrow">→</div>
+      <div class="cstep">
+        <div class="ccard" style="border-color:rgba(2,195,154,.3)">
+          <div class="cicon">👤</div>
+          <div class="cval" id="c-pat" style="color:var(--mint)">163+</div>
+          <div class="ctitle">Lives Improved</div>
+          <div class="cdesc">Patients in right<br>care setting</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Savings Curve — Annual $ Saved vs % Redirected</div>
+    <div id="chart-savings-curve" class="chart-box"></div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE 5: DATA SOURCES ═══════════ -->
+<div id="page-data" class="page">
+  <div class="section-label" style="margin-top:8px">// All datasets are free, public, and loaded directly into this app</div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-title">📦 Datasets Used</div>
+      <div class="src-list">
+        <div class="src-item">
+          <div class="src-dot" style="background:var(--mint)"></div>
+          <div>
+            <div class="src-name">LTC Waitlist — Long-term_Care_Waitlist_20260305.csv</div>
+            <div class="src-desc">765 weekly records from 2011–2025 · In hospital vs community · data.novascotia.ca</div>
+          </div>
+        </div>
+        <div class="src-item">
+          <div class="src-dot" style="background:var(--sky)"></div>
+          <div>
+            <div class="src-name">Home Support Waitlist — Home_Support_Waitlist_20260305.csv</div>
+            <div class="src-desc">586 weekly records from 2014–2025 · data.novascotia.ca</div>
+          </div>
+        </div>
+        <div class="src-item">
+          <div class="src-dot" style="background:var(--gold)"></div>
+          <div>
+            <div class="src-name">LTC Facilities — Long-term_Care_and_Residential_Care_Facilities_20260305.csv</div>
+            <div class="src-desc">143 facilities · Beds by type · Zone · GPS coordinates · data.novascotia.ca</div>
+          </div>
+        </div>
+        <div class="src-item">
+          <div class="src-dot" style="background:var(--coral)"></div>
+          <div>
+            <div class="src-name">Nursing Home Wait Times — nova_scotia_nursing_home_wait_times.csv</div>
+            <div class="src-desc">121 county/facility records · Median days hospital → nursing home · waittimes.novascotia.ca</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📊 Dataset Summary Stats</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
+        <div class="dstat">
+          <div class="dstat-val" style="color:var(--mint)">{{ live.waiting_hospital }}</div>
+          <div class="dstat-label">Currently Waiting in Hospital</div>
+        </div>
+        <div class="dstat">
+          <div class="dstat-val" style="color:var(--gold)">{{ live.total_waiting }}</div>
+          <div class="dstat-label">Total on LTC Waitlist (latest)</div>
+        </div>
+        <div class="dstat">
+          <div class="dstat-val" style="color:var(--sky)">{{ live.total_nh_beds }}</div>
+          <div class="dstat-label">Total NH Beds in NS</div>
+        </div>
+        <div class="dstat">
+          <div class="dstat-val" style="color:var(--coral)">{{ live.total_facilities }}</div>
+          <div class="dstat-label">LTC Facilities Mapped</div>
+        </div>
+        <div class="dstat">
+          <div class="dstat-val" style="color:var(--mint)">{{ live.home_support_waiting }}</div>
+          <div class="dstat-label">Waiting for Home Support</div>
+        </div>
+        <div class="dstat">
+          <div class="dstat-val" style="color:var(--gold)">{{ live.inter_facility }}</div>
+          <div class="dstat-label">Inter-Facility Transfers Pending</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:20px">
+    <div class="panel-title">🔑 Key Finding: Social Vulnerability Drives ALC, Not Medical Need</div>
+    <div style="font-size:14px;line-height:1.8;color:rgba(244,247,249,.8);max-width:800px">
+      Halifax research found that <strong style="color:var(--mint)">social vulnerability</strong> — not medical complexity —
+      is the strongest predictor of ALC status. Patients are stuck in hospital because they lack
+      home support networks, not because they require ongoing medical treatment.<br><br>
+      This means the fix is a <strong style="color:var(--mint)">routing problem</strong>, not a capacity problem.
+      The resources exist. They're just pointed at the wrong places.<br><br>
+      <strong style="color:var(--gold)">The MRI formula applied:</strong>
+      NS is using hospital beds (a resource) for ALC patients (the wrong purpose).
+      The fix is targeting home care to the zones with the worst mismatch — no hiring, no building.
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer style="position:relative;z-index:1;text-align:center;padding:20px;border-top:1px solid rgba(2,195,154,.1);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;color:rgba(244,247,249,.2);text-transform:uppercase">
+  DataJam 2026 · Sobey School of Business · Halifax, NS · March 7, 2026 · Problem: Alternate Level of Care (ALC)
+</footer>
+
+<script>
+// ── DATA FROM FLASK ──────────────────────────────────────────────
+const ZONES      = {{ zones|safe }};
+const LTC_TREND  = {{ ltc_trend|safe }};
+const HOME_TREND = {{ home_trend|safe }};
+const ZONE_ALC   = {{ zone_alc|safe }};
+const WAIT_CHART = {{ wait_chart|safe }};
+const FAC_CHART  = {{ facility_chart|safe }};
+
+const C = { navy:'#0a2342', teal:'#028090', mint:'#02c39a', coral:'#e84855',
+            gold:'#f4a261', sky:'#7dd3fc', white:'#f4f7f9', gray:'#64748b' };
+
+const PLOTLY_LAYOUT = {
+  paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+  font: { color: C.white, family: 'Outfit, sans-serif', size: 11 },
+  margin: { t: 10, r: 10, b: 40, l: 50 },
+  xaxis: { gridcolor: 'rgba(255,255,255,0.06)', zerolinecolor: 'rgba(255,255,255,0.1)' },
+  yaxis: { gridcolor: 'rgba(255,255,255,0.06)', zerolinecolor: 'rgba(255,255,255,0.1)' },
+  showlegend: true,
+  legend: { bgcolor: 'rgba(0,0,0,0)', font: { color: C.white, size: 11 } },
+};
+
+const CFG = { responsive: true, displayModeBar: false };
+
+// ── TABS ─────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+
+  // lazy-render charts
+  if (name === 'overview' && !window._overviewDone) { renderOverview(); window._overviewDone = true; }
+  if (name === 'zones'    && !window._zonesDone)    { renderZones();    window._zonesDone    = true; }
+  if (name === 'trends'   && !window._trendsDone)   { renderTrends();   window._trendsDone   = true; }
+  if (name === 'impact'   && !window._impactDone)   { renderImpact();   window._impactDone   = true; }
+}
+
+// ── ZONE CARDS ───────────────────────────────────────────────────
+const ZONE_ORDER = ['Central','Eastern','Northern','Western'];
+const SEVERITY_STYLES = {
+  'Critical': { color: C.coral, bg: 'rgba(232,72,85,0.15)', border: 'rgba(232,72,85,0.4)' },
+  'High':     { color: C.gold,  bg: 'rgba(244,162,97,0.15)', border: 'rgba(244,162,97,0.4)' },
+  'Medium':   { color: C.mint,  bg: 'rgba(2,195,154,0.12)',  border: 'rgba(2,195,154,0.4)' },
+  'Moderate': { color: C.sky,   bg: 'rgba(125,211,252,0.12)', border: 'rgba(125,211,252,0.4)' },
+};
+
+function buildZoneCards() {
+  const container = document.getElementById('zone-cards-js');
+  const wrap = document.createElement('div');
+  wrap.className = 'zone-cards';
+  ZONE_ORDER.forEach(zone => {
+    const d = ZONES[zone];
+    const sty = SEVERITY_STYLES[d.severity];
+    const pct = Math.round(d.alc_pct / 28 * 100);
+    const card = document.createElement('div');
+    card.className = 'zcard';
+    card.id = 'zcard-' + zone;
+    card.style.borderColor = 'rgba(255,255,255,0.08)';
+    card.onclick = () => selectZone(zone);
+    card.innerHTML = `
+      <div class="zcard-zone">Zone — ${zone}</div>
+      <div class="zcard-name" style="color:${d.color}">${zone} NS</div>
+      <div class="zcard-row"><span class="zcard-row-label">ALC Days %</span><span class="zcard-row-val" style="color:${d.color}">${d.alc_pct}%</span></div>
+      <div class="zcard-row"><span class="zcard-row-label">Beds Blocked</span><span class="zcard-row-val">~${d.beds_blocked}</span></div>
+      <div class="zcard-row"><span class="zcard-row-label">Excess Cost/yr</span><span class="zcard-row-val">$${d.excess_cost_m}M</span></div>
+      <div class="zcard-bar"><div class="zcard-fill" style="width:${pct}%;background:${d.color}"></div></div>
+      <div class="zbadge" style="background:${sty.bg};border-color:${sty.border};color:${sty.color}">${d.severity}</div>
+    `;
+    wrap.appendChild(card);
+  });
+  container.appendChild(wrap);
+}
+
+const ZONE_INSIGHTS = {
+  Central:  `<strong>🎯 Target Zone 1 first.</strong> Central NS (Halifax Metro) has the highest ALC rate in the province at 23.1%. The Halifax Infirmary is at <strong>102% capacity</strong>, Dartmouth General at 121%. Redirecting just 30% of home care gaps here could free 65+ beds and cut QEII ER wait times.`,
+  Eastern:  `<strong>⚡ Rural compound effect.</strong> Cape Breton's geographic isolation means patients have fewer discharge options — they stay in hospital longer by default. <strong>Mobile home care or telehealth-supported discharge</strong> could unlock 40+ beds in this zone alone.`,
+  Northern: `<strong>✅ Highest social vulnerability signal.</strong> Research shows patients here are stuck due to <strong>lack of home support networks</strong>, not ongoing medical need. A targeted home care surge would have fast, measurable impact with the highest ROI in NS.`,
+  Western:  `<strong>◆ Preventable with early action.</strong> Western NS has a moderate ALC rate but a growing LTC waitlist. Proactive <strong>early flagging of at-risk patients</strong> before admission could keep this zone from tipping into crisis territory within 2 years.`,
+};
+
+function selectZone(zone) {
+  ZONE_ORDER.forEach(z => {
+    const card = document.getElementById('zcard-' + z);
+    card.classList.remove('active');
+    card.style.borderColor = 'rgba(255,255,255,0.08)';
+  });
+  const d = ZONES[zone];
+  const card = document.getElementById('zcard-' + zone);
+  card.classList.add('active');
+  card.style.borderColor = d.color;
+  card.style.boxShadow = `0 8px 32px ${d.color}33`;
+
+  const sty = SEVERITY_STYLES[d.severity];
+  document.getElementById('zone-detail-box').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;opacity:.5;margin-bottom:4px">${zone} Nova Scotia</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:26px;color:${d.color}">${zone} NS</div>
+      </div>
+      <div style="padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:${sty.bg};color:${sty.color};border:1px solid ${sty.border}">${d.severity}</div>
+    </div>
+    <div class="detail-stats">
+      <div class="dstat"><div class="dstat-val" style="color:${d.color}">${d.alc_pct}%</div><div class="dstat-label">ALC Days (% of hospital days)</div></div>
+      <div class="dstat"><div class="dstat-val" style="color:var(--coral)">~${d.beds_blocked}</div><div class="dstat-label">Beds Blocked by ALC</div></div>
+      <div class="dstat"><div class="dstat-val" style="color:var(--gold)">$${d.excess_cost_m}M</div><div class="dstat-label">Annual Excess Cost</div></div>
+      <div class="dstat"><div class="dstat-val" style="color:var(--sky)">${d.median_wait || '—'} days</div><div class="dstat-label">Median LTC Wait Time</div></div>
+    </div>
+    <div class="insight">${ZONE_INSIGHTS[zone]}</div>
+  `;
+}
+
+// ── RENDER CHARTS ────────────────────────────────────────────────
+
+function renderOverview() {
+  // Zone ALC bar
+  Plotly.newPlot('chart-zone-alc', [{
+    type: 'bar', x: ZONE_ALC.zones, y: ZONE_ALC.alc_pct,
+    marker: { color: ZONE_ALC.colors },
+    text: ZONE_ALC.alc_pct.map(v => v + '%'), textposition: 'outside',
+    hovertemplate: '<b>%{x}</b><br>ALC: %{y}%<extra></extra>',
+  }], {
+    ...PLOTLY_LAYOUT,
+    yaxis: { ...PLOTLY_LAYOUT.yaxis, title: '% of Hospital Days', range: [0, 28] },
+    shapes: [{ type:'line', x0:-0.5, x1:3.5, y0:16.9, y1:16.9,
+               line:{ color:'rgba(125,211,252,0.5)', dash:'dash', width:1.5 } }],
+    annotations: [{ x: 3.3, y: 17.4, text:'Canada avg: 16.9%', showarrow:false,
+                    font:{ color:C.sky, size:10 }, xref:'x', yref:'y' }],
+  }, CFG);
+
+  // LTC trend mini
+  Plotly.newPlot('chart-ltc-trend-mini', [
+    { type:'scatter', mode:'lines', name:'Waiting in Hospital',
+      x: LTC_TREND.dates, y: LTC_TREND.hospital,
+      line:{ color:C.coral, width:2 }, fill:'tozeroy', fillcolor:'rgba(232,72,85,0.08)' },
+    { type:'scatter', mode:'lines', name:'Waiting in Community',
+      x: LTC_TREND.dates, y: LTC_TREND.community,
+      line:{ color:C.mint, width:2 }, fill:'tozeroy', fillcolor:'rgba(2,195,154,0.08)' },
+  ], { ...PLOTLY_LAYOUT, yaxis: { ...PLOTLY_LAYOUT.yaxis, title: 'People' } }, CFG);
+}
+
+function renderZones() {
+  buildZoneCards();
+
+  // Blocked beds bar
+  Plotly.newPlot('chart-blocked', [{
+    type:'bar', orientation:'h',
+    y: ZONE_ALC.zones, x: ZONE_ALC.blocked,
+    marker:{ color: ZONE_ALC.colors },
+    text: ZONE_ALC.blocked.map(v => '~' + v + ' beds'),
+    textposition:'outside',
+    hovertemplate: '<b>%{y}</b><br>Beds blocked: ~%{x}<extra></extra>',
+  }], {
+    ...PLOTLY_LAYOUT, margin: { t:10, r:80, b:40, l:80 },
+    xaxis:{ ...PLOTLY_LAYOUT.xaxis, title:'Beds Blocked by ALC' },
+    yaxis:{ ...PLOTLY_LAYOUT.yaxis, automargin:true },
+  }, CFG);
+
+  // Wait times
+  Plotly.newPlot('chart-wait', [{
+    type:'bar', orientation:'h',
+    y: WAIT_CHART.counties, x: WAIT_CHART.wait_days,
+    marker:{ color: WAIT_CHART.colors },
+    hovertemplate:'<b>%{y}</b><br>Wait: %{x} days<extra></extra>',
+  }], {
+    ...PLOTLY_LAYOUT,
+    margin:{ t:10, r:20, b:40, l:120 },
+    xaxis:{ ...PLOTLY_LAYOUT.xaxis, title:'Median Wait Days (Hospital → NH)' },
+    yaxis:{ ...PLOTLY_LAYOUT.yaxis, automargin:true },
+  }, CFG);
+
+  // Facilities
+  Plotly.newPlot('chart-facilities', [
+    { type:'bar', name:'Nursing Home Beds', x: FAC_CHART.zones, y: FAC_CHART.nh_beds,
+      marker:{ color:C.teal } },
+    { type:'bar', name:'Residential Care Beds', x: FAC_CHART.zones, y: FAC_CHART.rcf_beds,
+      marker:{ color:C.mint } },
+  ], {
+    ...PLOTLY_LAYOUT, barmode:'stack',
+    yaxis:{ ...PLOTLY_LAYOUT.yaxis, title:'Number of Beds' },
+  }, CFG);
+}
+
+function renderTrends() {
+  // Hospital trend
+  Plotly.newPlot('chart-hospital-trend', [{
+    type:'scatter', mode:'lines', name:'Waiting in Hospital (ALC proxy)',
+    x: LTC_TREND.dates, y: LTC_TREND.hospital,
+    line:{ color:C.coral, width:2.5 },
+    fill:'tozeroy', fillcolor:'rgba(232,72,85,0.1)',
+    hovertemplate:'%{x}<br>%{y} people in hospital<extra></extra>',
+  }], {
+    ...PLOTLY_LAYOUT, margin:{ t:10, r:10, b:60, l:60 },
+    yaxis:{ ...PLOTLY_LAYOUT.yaxis, title:'People Waiting in Hospital' },
+    xaxis:{ ...PLOTLY_LAYOUT.xaxis, title:'Date' },
+  }, CFG);
+
+  // Community vs hospital
+  Plotly.newPlot('chart-community-trend', [
+    { type:'scatter', mode:'lines', name:'In Hospital', x: LTC_TREND.dates, y: LTC_TREND.hospital, line:{ color:C.coral, width:2 } },
+    { type:'scatter', mode:'lines', name:'In Community', x: LTC_TREND.dates, y: LTC_TREND.community, line:{ color:C.mint, width:2 } },
+  ], { ...PLOTLY_LAYOUT, yaxis:{ ...PLOTLY_LAYOUT.yaxis, title:'People' } }, CFG);
+
+  // Home support
+  Plotly.newPlot('chart-home-trend', [{
+    type:'scatter', mode:'lines', name:'Waiting for Home Support',
+    x: HOME_TREND.dates, y: HOME_TREND.waiting,
+    line:{ color:C.sky, width:2 }, fill:'tozeroy', fillcolor:'rgba(125,211,252,0.1)',
+  }], { ...PLOTLY_LAYOUT, yaxis:{ ...PLOTLY_LAYOUT.yaxis, title:'People' } }, CFG);
+}
+
+function renderImpact() {
+  // Savings curve
+  const pcts = Array.from({length:51}, (_,i) => i + 10);
+  const savings = pcts.map(p => Math.round(545 * p/100 * 365 * 1150 / 1e6));
+  Plotly.newPlot('chart-savings-curve', [{
+    type:'scatter', mode:'lines', fill:'tozeroy',
+    x: pcts, y: savings,
+    line:{ color:C.mint, width:3 }, fillcolor:'rgba(2,195,154,0.1)',
+    hovertemplate:'Redirect %{x}%<br>Save $%{y}M/year<extra></extra>',
+  }], {
+    ...PLOTLY_LAYOUT,
+    xaxis:{ ...PLOTLY_LAYOUT.xaxis, title:'% of ALC Patients Redirected to Home Care' },
+    yaxis:{ ...PLOTLY_LAYOUT.yaxis, title:'Annual Savings ($M)' },
+    shapes:[{ type:'line', x0:30, x1:30, y0:0, y1:Math.max(...savings),
+              line:{ color:C.gold, dash:'dot', width:1.5 } }],
+    annotations:[{ x:32, y:savings[20], text:'Current model (30%)', showarrow:false,
+                   font:{ color:C.gold, size:11 }, xref:'x', yref:'y' }],
+  }, CFG);
+}
+
+// ── CASCADE CALCULATOR ───────────────────────────────────────────
+function updateCascade(pct) {
+  pct = parseInt(pct);
+  document.getElementById('sliderDisplay').textContent = pct + '%';
+  const beds    = Math.round(545 * pct / 100);
+  const erDrop  = Math.round(beds / 545 * 77);
+  const ambMin  = Math.round(beds / 545 * 104);
+  const saveM   = Math.round(beds * 365 * 1150 / 1e6);
+  document.getElementById('c-beds').textContent = beds;
+  document.getElementById('c-er').textContent   = '-' + erDrop + '%';
+  document.getElementById('c-amb').textContent  = '-' + ambMin + ' min';
+  document.getElementById('c-save').textContent = '$' + saveM + 'M';
+  document.getElementById('c-pat').textContent  = beds + '+';
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  renderOverview();
+  updateCascade(30);
+});
+</script>
+</body>
+</html>
